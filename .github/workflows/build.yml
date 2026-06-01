@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch: # Permite rodar o build manualmente pelo botão no GitHub
+  workflow_dispatch:
 
 jobs:
   build:
@@ -14,16 +14,6 @@ jobs:
     steps:
     - name: Checkout do código
       uses: actions/checkout@v4
-
-    - name: Configurar Cache do Buildozer
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.buildozer
-          NossaConveniencia/.buildozer
-        key: ${{ runner.os }}-buildozer-${{ hashFiles('NossaConveniencia/buildozer.spec') }}
-        restore-keys: |
-          ${{ runner.os }}-buildozer-
 
     - name: Instalar dependências do sistema
       run: |
@@ -52,13 +42,27 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython virtualenv
 
-    - name: Executar o Buildozer
-      working-directory: ./NossaConveniencia
+    - name: Localizar e Executar o Buildozer
       run: |
+        # Encontra a pasta que contém o buildozer.spec
+        SPEC_PATH=$(find . -name "buildozer.spec" -print -quit)
+        
+        if [ -z "$SPEC_PATH" ]; then
+          echo "ERRO: O arquivo buildozer.spec não foi encontrado em NENHUM lugar do repositório!"
+          exit 1
+        fi
+        
+        # Extrai o diretório do arquivo
+        SPEC_DIR=$(dirname "$SPEC_PATH")
+        echo "Sucesso! Arquivo de configuração encontrado na pasta: $SPEC_DIR"
+        
+        # Entra na pasta correta e roda o build
+        cd "$SPEC_DIR"
         buildozer -v android debug
 
     - name: Upload do APK gerado
       uses: actions/upload-artifact@v4
       with:
         name: pacote-apk-debug
-        path: NossaConveniencia/bin/*.apk
+        path: |
+          **/bin/*.apk
