@@ -20,8 +20,8 @@ jobs:
       with:
         path: |
           ~/.buildozer
-          .buildozer
-        key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          NossaConveniencia/.buildozer
+        key: ${{ runner.os }}-buildozer-${{ hashFiles('NossaConveniencia/buildozer.spec') }}
         restore-keys: |
           ${{ runner.os }}-buildozer-
 
@@ -53,12 +53,12 @@ jobs:
         pip install buildozer cython virtualenv
 
     - name: Executar o Buildozer
+      working-directory: ./NossaConveniencia
       run: |
-        # O GitHub Actions roda como usuário normal (não-root), evitando aquele loop do Colab
         buildozer -v android debug
 
     - name: Upload do APK gerado
       uses: actions/upload-artifact@v4
       with:
         name: pacote-apk-debug
-        path: bin/*.apk
+        path: NossaConveniencia/bin/*.apk
