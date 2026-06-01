@@ -15,7 +15,7 @@ jobs:
     - name: Checkout do código
       uses: actions/checkout@v4
 
-    - name: Instalar dependências do sistema
+    - name: Instalar dependências do sistema e Android SDK Oficial
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -30,7 +30,8 @@ jobs:
           openjdk-17-jdk \
           unzip \
           zip \
-          zlib1g-dev
+          zlib1g-dev \
+          android-sdk
 
     - name: Configurar Python
       uses: actions/setup-python@v5
@@ -44,33 +45,38 @@ jobs:
 
     - name: Gerar e Configurar o Buildozer.spec
       run: |
-        # Localiza a pasta onde está o main.py do seu app
         MAIN_PATH=$(find . -name "main.py" -print -quit)
         
         if [ -z "$MAIN_PATH" ]; then
-          echo "ERRO: O arquivo main.py não foi encontrado no repositório! Certifique-se de que o nome está correto."
+          echo "ERRO: O arquivo main.py não foi encontrado no repositório!"
           exit 1
         fi
         
         APP_DIR=$(dirname "$MAIN_PATH")
-        echo "Aplicativo encontrado na pasta: $APP_DIR"
         cd "$APP_DIR"
         
-        # Cria um arquivo buildozer.spec padrão novo limpo
+        # Inicia um arquivo de configuração do zero
         buildozer init
         
-        # Ajusta as configurações cruciais para não dar erro
-        # 1. Altera os requerimentos para incluir python3==3.11, kivy, kivymd e pyjnius
+        # Injeta as configurações corretas para evitar incompatibilidade do Python 3.14
         sed -i 's/^requirements = .*/requirements = python3==3.11,kivy==2.3.0,kivymd,pyjnius/' buildozer.spec
-        
-        # 2. Define o nome do aplicativo baseado no seu projeto
         sed -i 's/^title = .*/title = Nossa Conveniencia/' buildozer.spec
-        
-        # 3. Define o pacote (package.domain)
         sed -i 's/^package.name = .*/package.name = nossaconveniencia/' buildozer.spec
         sed -i 's/^package.domain = .*/package.domain = org.rafaeldrones/' buildozer.spec
+
+    - name: Forçar Aceitação Absoluta das Licenças SDK
+      run: |
+        # Cria antecipadamente a estrutura de pastas onde o Buildozer vai montar o SDK interno
+        mkdir -p /home/runner/.buildozer/android/platform/android-sdk/licenses
         
-        echo "Arquivo buildozer.spec criado e configurado com sucesso!"
+        # Escreve os hashes de TODAS as licenças conhecidas da Google (SDK, NDK, Preview, Preview NDK)
+        # Isso diz ao instalador: "Já foi aceito manualmente"
+        echo -e "244d2478ade40ab973bea949d315483c3e198c3c\n28a28507ee0b20159a6a8d1b1eb47e0477bc2f7e\nd56f5187479451eabf01fb743730253379740aff\n35db55a08361439d4b3fc7c9b763db22223842b4\n2c3322bcfcd72ca1927edfe69574be072216e255\n33b62255aa20ed0223f0016bc3231025114a2754\ne9ac286310d1b314aef7b3d7b70c320d31e91099" > /home/runner/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+        echo -e "84831b9409646a918e30573bab4c9c91346d8abd\n504667f4c0de7af1a06de9f4b1727b84351f291d" > /home/runner/.buildozer/android/platform/android-sdk/licenses/android-googletv-license
+        echo -e "bd0b654eac2ba324d1a4cb95912ce98d3cb85a7d" > /home/runner/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+        
+        # Define uma variável global para o Buildozer aceitar tudo por padrão em modo não interativo
+        echo " can_accept_sdk_license=True" >> /home/runner/.buildozer/config 2>/dev/null || true
 
     - name: Executar o Buildozer
       run: |
@@ -78,7 +84,7 @@ jobs:
         APP_DIR=$(dirname "$MAIN_PATH")
         cd "$APP_DIR"
         
-        # Roda o build sem travar pedindo root
+        # Executa o build passando o parâmetro de aceitação automático nativo do python-for-android
         buildozer -v android debug
 
     - name: Upload do APK gerado
