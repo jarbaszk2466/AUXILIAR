@@ -59,17 +59,34 @@ jobs:
         APP_DIR=$(dirname "$MAIN_PATH")
         cd "$APP_DIR"
         
-        # Inicia um arquivo spec limpo
         buildozer init
         
-        # Define as configurações corretas para Kivy e Python estável
+        # Define os requerimentos estáveis
         sed -i 's/^requirements = .*/requirements = python3==3.11,kivy==2.3.0,kivymd,pyjnius/' buildozer.spec
         sed -i 's/^title = .*/title = Nossa Conveniencia/' buildozer.spec
         sed -i 's/^package.name = .*/package.name = nossaconveniencia/' buildozer.spec
         sed -i 's/^package.domain = .*/package.domain = org.rafaeldrones/' buildozer.spec
         
-        # Força o buildozer a aceitar os termos do SDK nativamente nas configurações
+        # Ativa a flag nativa de aceitação nas configurações
         sed -i 's/^#android.accept_apk_license = False/android.accept_apk_license = True/' buildozer.spec
+
+    - name: Pré-instalação e Aceitação Forçada de Licenças
+      run: |
+        # Força o Buildozer a baixar a estrutura inicial do Android SDK/NDK antes do build principal
+        # Usamos o comando 'help' apenas para disparar o download das ferramentas de linha de comando
+        buildozer android help || true
+        
+        # Encontra o executável oficial do sdkmanager que acabou de ser baixado
+        SDK_MANAGER=$(find /home/runner/.buildozer/ -name "sdkmanager" -type f -print -quit)
+        
+        if [ -n "$SDK_MANAGER" ]; then
+          echo "Gerenciador do SDK encontrado em: $SDK_MANAGER"
+          echo "Aceitando todas as licenças pendentes (incluindo Build-Tools 37)..."
+          # Injeta 'yes' repetidamente direto no prompt oficial do sdkmanager
+          yes | $SDK_MANAGER --licenses || true
+        else
+          echo "Aviso: sdkmanager ainda não disponível, o Buildozer cuidará disso com a flag interna."
+        fi
 
     - name: Executar o Buildozer
       run: |
@@ -77,10 +94,7 @@ jobs:
         APP_DIR=$(dirname "$MAIN_PATH")
         cd "$APP_DIR"
         
-        # Injeta variáveis para o SDK aceitar tudo de forma não interativa
-        export ANDROID_LICENSES_FLAGS="--accept-licenses"
-        
-        # Roda o buildozer de forma limpa (sem o "yes |" para evitar o Broken Pipe)
+        # Roda o build final de forma limpa e contínua
         buildozer -v android debug
         
     - name: Upload do APK gerado
