@@ -61,41 +61,45 @@ jobs:
         
         buildozer init
         
-        # Configurações padrão do app
+        # Configurações do seu app
         sed -i 's/^requirements = .*/requirements = python3==3.11,kivy==2.3.0,kivymd,pyjnius/' buildozer.spec
         sed -i 's/^title = .*/title = Nossa Conveniencia/' buildozer.spec
         sed -i 's/^package.name = .*/package.name = nossaconveniencia/' buildozer.spec
         sed -i 's/^package.domain = .*/package.domain = org.rafaeldrones/' buildozer.spec
         
-        # Ativa aceitação automática nativa no arquivo .spec
+        # Ativa a flag nativa do spec para aceitar licenças
         sed -i 's/^#android.accept_apk_license = False/android.accept_apk_license = True/' buildozer.spec
 
-    - name: Instalação Limpa e Forçada do Android SDK
+    - name: Montar Ambiente Android SDK Perfeito (Com Link Simbólico)
       run: |
-        # Deleta absolutamente qualquer rastro ou pasta fantasma para obrigar a reinstalação do zero
+        # Limpa o terreno de builds anteriores
         rm -rf /home/runner/.buildozer/android
         
-        # Cria a estrutura correta exigida pela Google
+        # Cria a árvore exata que o Buildozer quer ver
         mkdir -p /home/runner/.buildozer/android/platform/android-sdk/cmdline-tools/latest
+        mkdir -p /home/runner/.buildozer/android/platform/android-sdk/tools/bin
         
-        # Baixa diretamente as ferramentas oficiais de linha de comando atualizadas da Google
+        # Baixa as ferramentas oficiais da Google
         cd /home/runner/.buildozer/android/platform/android-sdk
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline.zip
         unzip -q cmdline.zip
-        
-        # Move para a pasta interna 'latest' para o sdkmanager funcionar direito
         mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
         rm cmdline.zip
 
-        # Define o caminho do executável que acabamos de instalar
+        # Cria os links simbólicos (atalhos) para enganar o Buildozer legado
+        # Sempre que ele procurar em 'tools/bin', vai rodar o nosso 'cmdline-tools' atualizado
+        ln -s /home/runner/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager /home/runner/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+        ln -s /home/runner/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/avdmanager /home/runner/.buildozer/android/platform/android-sdk/tools/bin/avdmanager
+
+        # Define o caminho do executável ativo
         SDKMANAGER="/home/runner/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager"
         
-        # Força o 'yes' para assinar digitalmente TODAS as licenças da Google
-        echo "Aceitando licenças do Android SDK de forma absoluta..."
+        # Aceita todas as licenças na marra
+        echo "Aceitando licenças do Android de forma absoluta..."
         yes | $SDKMANAGER --sdk_root=/home/runner/.buildozer/android/platform/android-sdk --licenses
 
-        # Instala obrigatoriamente as ferramentas que o Buildozer precisa (incluindo o aidl)
-        echo "Instalando pacotes essenciais do SDK (Platform-tools e Build-tools 37)..."
+        # Pré-instala as ferramentas de compilação essenciais
+        echo "Instalando platform-tools e build-tools 37..."
         $SDKMANAGER --sdk_root=/home/runner/.buildozer/android/platform/android-sdk "platform-tools" "build-tools;37.0.0" "platforms;android-33"
 
     - name: Executar o Buildozer
@@ -104,7 +108,7 @@ jobs:
         APP_DIR=$(dirname "$MAIN_PATH")
         cd "$APP_DIR"
         
-        # Agora o Buildozer vai encontrar o SDK com o sdkmanager e as licenças perfeitamente configuradas
+        # Executa o build final. Agora todos os arquivos e atalhos estão no lugar certo!
         buildozer -v android debug
         
     - name: Upload do APK gerado
