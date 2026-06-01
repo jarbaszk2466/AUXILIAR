@@ -42,22 +42,43 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython virtualenv
 
-    - name: Localizar e Executar o Buildozer
+    - name: Gerar e Configurar o Buildozer.spec
       run: |
-        # Encontra a pasta que contém o buildozer.spec
-        SPEC_PATH=$(find . -name "buildozer.spec" -print -quit)
+        # Localiza a pasta onde está o main.py do seu app
+        MAIN_PATH=$(find . -name "main.py" -print -quit)
         
-        if [ -z "$SPEC_PATH" ]; then
-          echo "ERRO: O arquivo buildozer.spec não foi encontrado em NENHUM lugar do repositório!"
+        if [ -z "$MAIN_PATH" ]; then
+          echo "ERRO: O arquivo main.py não foi encontrado no repositório! Certifique-se de que o nome está correto."
           exit 1
         fi
         
-        # Extrai o diretório do arquivo
-        SPEC_DIR=$(dirname "$SPEC_PATH")
-        echo "Sucesso! Arquivo de configuração encontrado na pasta: $SPEC_DIR"
+        APP_DIR=$(dirname "$MAIN_PATH")
+        echo "Aplicativo encontrado na pasta: $APP_DIR"
+        cd "$APP_DIR"
         
-        # Entra na pasta correta e roda o build
-        cd "$SPEC_DIR"
+        # Cria um arquivo buildozer.spec padrão novo limpo
+        buildozer init
+        
+        # Ajusta as configurações cruciais para não dar erro
+        # 1. Altera os requerimentos para incluir python3==3.11, kivy, kivymd e pyjnius
+        sed -i 's/^requirements = .*/requirements = python3==3.11,kivy==2.3.0,kivymd,pyjnius/' buildozer.spec
+        
+        # 2. Define o nome do aplicativo baseado no seu projeto
+        sed -i 's/^title = .*/title = Nossa Conveniencia/' buildozer.spec
+        
+        # 3. Define o pacote (package.domain)
+        sed -i 's/^package.name = .*/package.name = nossaconveniencia/' buildozer.spec
+        sed -i 's/^package.domain = .*/package.domain = org.rafaeldrones/' buildozer.spec
+        
+        echo "Arquivo buildozer.spec criado e configurado com sucesso!"
+
+    - name: Executar o Buildozer
+      run: |
+        MAIN_PATH=$(find . -name "main.py" -print -quit)
+        APP_DIR=$(dirname "$MAIN_PATH")
+        cd "$APP_DIR"
+        
+        # Roda o build sem travar pedindo root
         buildozer -v android debug
 
     - name: Upload do APK gerado
