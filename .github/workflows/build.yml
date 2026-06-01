@@ -15,6 +15,12 @@ jobs:
     - name: Checkout do código
       uses: actions/checkout@v4
 
+    - name: Configurar Java 17 (Obrigatório para NDK Moderno)
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
     - name: Instalar dependências do sistema
       run: |
         sudo apt-get update
@@ -27,12 +33,11 @@ jobs:
           libtool \
           automake \
           autoconf \
-          openjdk-17-jdk \
           unzip \
           zip \
           zlib1g-dev
 
-    - name: Configurar Python
+    - name: Configurar Python 3.11
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
@@ -40,7 +45,7 @@ jobs:
     - name: Instalar Buildozer e Cython
       run: |
         pip install --upgrade pip
-        pip install buildozer cython virtualenv
+        pip install "buildozer>=1.5.0" cython virtualenv
 
     - name: Gerar e Configurar o Buildozer.spec
       run: |
@@ -54,23 +59,33 @@ jobs:
         APP_DIR=$(dirname "$MAIN_PATH")
         cd "$APP_DIR"
         
-        # Inicia o spec
+        # Inicia um arquivo spec limpo
         buildozer init
         
-        # Força os requerimentos corretos com Python estável
+        # Define as configurações corretas para Kivy e Python estável
         sed -i 's/^requirements = .*/requirements = python3==3.11,kivy==2.3.0,kivymd,pyjnius/' buildozer.spec
         sed -i 's/^title = .*/title = Nossa Conveniencia/' buildozer.spec
         sed -i 's/^package.name = .*/package.name = nossaconveniencia/' buildozer.spec
         sed -i 's/^package.domain = .*/package.domain = org.rafaeldrones/' buildozer.spec
+        
+        # Força o buildozer a aceitar os termos do SDK nativamente nas configurações
+        sed -i 's/^#android.accept_apk_license = False/android.accept_apk_license = True/' buildozer.spec
 
-    - name: Executar o Buildozer (Aceitando Termos)
+    - name: Executar o Buildozer
       run: |
         MAIN_PATH=$(find . -name "main.py" -print -quit)
         APP_DIR=$(dirname "$MAIN_PATH")
         cd "$APP_DIR"
         
-        # Esta variável de ambiente avisa o gerenciador do Android para aceitar tudo silenciosamente
-        export ANDROID_Licenses_Flags="--accept-licenses"
+        # Injeta variáveis para o SDK aceitar tudo de forma não interativa
+        export ANDROID_LICENSES_FLAGS="--accept-licenses"
         
-        # O 'yes' agora interage direto com qualquer prompt clássico que surgir
-        yes | buildozer -v android debug
+        # Roda o buildozer de forma limpa (sem o "yes |" para evitar o Broken Pipe)
+        buildozer -v android debug
+        
+    - name: Upload do APK gerado
+      uses: actions/upload-artifact@v4
+      with:
+        name: pacote-apk-debug
+        path: |
+          **/bin/*.apk
